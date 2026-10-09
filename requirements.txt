@@ -1,5 +1,0 @@
-streamlit
-pandas
-plotly
-requests
-fast-flights>=3.0,<4
