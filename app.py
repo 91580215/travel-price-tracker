@@ -1,4 +1,6 @@
 import os
+print("현재 실행 파일:", os.path.abspath(__file__))
+import os
 import json
 from crawler import search_flights, search_hotels
 from datetime import date, datetime, timedelta
