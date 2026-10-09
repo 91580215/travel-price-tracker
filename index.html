@@ -1,0 +1,107 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>여행 최저가 측정기</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/script.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">✈️ Travel Price</a>
+    <span class="top-label">SMART TRIP PLANNER</span>
+  </header>
+
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">YOUR NEXT TRIP STARTS HERE</p>
+      <h1>여행의 설렘은 크게,<br><span>가격 부담은 작게.</span></h1>
+      <p class="subtitle">
+        항공권과 숙소 가격을 비교하고 마음에 드는 가격을 기록해 보세요.
+      </p>
+    </section>
+
+    <section class="search-card">
+      <div class="tabs">
+        <button class="tab active" data-tab="flight">✈️ 항공권</button>
+        <button class="tab" data-tab="hotel">🏨 숙소</button>
+      </div>
+
+      <form id="flight-form" class="search-form">
+        <div class="field">
+          <label for="origin">출발지</label>
+          <input id="origin" value="서울" required maxlength="60">
+        </div>
+        <div class="field">
+          <label for="destination">도착지</label>
+          <input id="destination" value="제주" required maxlength="60">
+        </div>
+        <div class="field">
+          <label for="depart-date">출발 날짜</label>
+          <input id="depart-date" type="date" required>
+        </div>
+        <button class="primary-button" type="submit">항공권 검색</button>
+      </form>
+
+      <form id="hotel-form" class="search-form hidden">
+        <div class="field">
+          <label for="city">여행 도시</label>
+          <input id="city" value="제주" required maxlength="60">
+        </div>
+        <div class="field">
+          <label for="checkin">체크인</label>
+          <input id="checkin" type="date" required>
+        </div>
+        <div class="field">
+          <label for="checkout">체크아웃</label>
+          <input id="checkout" type="date" required>
+        </div>
+        <button class="primary-button" type="submit">숙소 검색</button>
+      </form>
+    </section>
+
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+
+    <section class="results-section">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">SEARCH RESULTS</p>
+          <h2 id="results-title">여행 가격 둘러보기</h2>
+        </div>
+        <span class="demo-badge">예시 데이터</span>
+      </div>
+      <div id="results" class="results-grid">
+        <div class="empty-state">
+          <span>🌍</span>
+          <p>위 정보를 입력하고 검색해 보세요!</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="history-section">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">MY PRICE HISTORY</p>
+          <h2>내 가격 기록</h2>
+        </div>
+        <button id="refresh-history" class="secondary-button">
+          기록 새로고침
+        </button>
+      </div>
+
+      <div id="history-chart" class="history-chart">
+        <p class="muted">저장한 가격이 여기에 표시됩니다.</p>
+      </div>
+
+      <div id="history-list" class="history-list"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>✈️ Travel Price Tracker</p>
+    <p>현재 검색 결과는 예시 가격이며 실제 예약 가능한 가격이 아닙니다.</p>
+  </footer>
+</body>
+</html>
