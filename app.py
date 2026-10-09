@@ -1,5 +1,6 @@
 import os
 import json
+from crawler import search_flights, search_hotels
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
