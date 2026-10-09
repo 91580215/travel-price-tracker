@@ -1,17 +1,25 @@
 
+
 import requests
-from fast_flights import FlightData, Passengers, get_flights
 
 
 def search_flights(origin, destination, depart_date, adults=1):
-    """Google Flights 기반 항공권 검색"""
+    """항공권 검색"""
+
+    try:
+        from fast_flights import FlightData, Passengers, get_flights
+    except ImportError as e:
+        raise RuntimeError(
+            "항공권 라이브러리를 불러오지 못했어요. "
+            "requirements.txt와 설치 로그를 확인해 주세요."
+        ) from e
 
     result = get_flights(
         flight_data=[
             FlightData(
                 date=depart_date,
                 from_airport=origin,
-                to_airport=destination
+                to_airport=destination,
             )
         ],
         trip="one-way",
@@ -23,13 +31,7 @@ def search_flights(origin, destination, depart_date, adults=1):
     return result
 
 
-def search_hotels(
-    city,
-    checkin,
-    checkout,
-    api_token,
-    guests=2
-):
+def search_hotels(city, checkin, checkout, api_token, guests=2):
     """Apify를 이용한 숙박 검색"""
 
     actor_id = "johnvc~google-hotels-search-scraper"
@@ -51,16 +53,12 @@ def search_hotels(
 
     response = requests.post(
         url,
-        params={
-            "token": api_token,
-            "clean": "true"
-        },
+        params={"token": api_token, "clean": "true"},
         json=payload,
         timeout=120,
     )
 
     response.raise_for_status()
-
     data = response.json()
 
     if not isinstance(data, list):
