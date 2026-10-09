@@ -1,337 +1,296 @@
+const flightTab = document.getElementById("flightTab");
+const hotelTab = document.getElementById("hotelTab");
 
-const $ = (selector) => document.querySelector(selector);
+const flightForm = document.getElementById("flightForm");
+const hotelForm = document.getElementById("hotelForm");
 
-let currentCategory = "flight";
+const results = document.getElementById("results");
+const resultCount = document.getElementById("resultCount");
+const statusMessage = document.getElementById("statusMessage");
+
+const historyList = document.getElementById("historyList");
+const historyMessage = document.getElementById("historyMessage");
+const refreshHistory = document.getElementById("refreshHistory");
+
 let currentResults = [];
-let currentNights = 1;
 
+
+// HTML에 안전하게 표시하기 위한 함수
 function escapeHTML(value) {
-  return String(value).replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  })[char]);
-}
+    return String(value).replace(/[&<>"']/g, function (char) {
+        const entities = {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;"
+        };
 
-function setLocalDate(input, daysFromToday) {
-  const d = new Date();
-  d.setDate(d.getDate() + daysFromToday);
-
-  const localDate = [
-    d.getFullYear(),
-    String(d.getMonth() + 1).padStart(2, "0"),
-    String(d.getDate()).padStart(2, "0")
-  ].join("-");
-
-  input.value = localDate;
-  input.min = $("#today-placeholder")?.value || "";
-}
-
-function showStatus(message, isError = false) {
-  const status = $("#status");
-  status.textContent = message;
-  status.style.color = isError ? "#c0392b" : "#173b65";
-}
-
-async function apiRequest(url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    }
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.error || "요청을 처리하지 못했어요.");
-  }
-
-  return data;
-}
-
-// 항공권 / 숙소 탭 전환
-document.querySelectorAll(".tab").forEach((tab) => {
-  tab.addEventListener("click", () => {
-    currentCategory = tab.dataset.tab;
-
-    document.querySelectorAll(".tab").forEach((item) => {
-      item.classList.toggle("active", item === tab);
+        return entities[char];
     });
+}
 
-    $("#flight-form").classList.toggle(
-      "hidden",
-      currentCategory !== "flight"
-    );
 
-    $("#hotel-form").classList.toggle(
-      "hidden",
-      currentCategory !== "hotel"
-    );
+// 가격을 원화 형식으로 표시
+function formatPrice(price) {
+    return Number(price).toLocaleString("ko-KR") + "원";
+}
 
-    $("#results-title").textContent =
-      currentCategory === "flight"
-        ? "항공권 검색 결과"
-        : "숙소 검색 결과";
 
-    $("#results").innerHTML = `
-      <div class="empty-state">
-        <span>🌍</span>
-        <p>여행 정보를 입력하고 검색해 보세요!</p>
-      </div>
-    `;
+// 서버에 요청을 보내는 공통 함수
+async function apiRequest(url, options = {}) {
+    const response = await fetch(url, options);
+    const data = await response.json();
 
-    showStatus("");
-  });
+    if (!response.ok) {
+        throw new Error(data.error || "요청에 실패했어요.");
+    }
+
+    return data;
+}
+
+
+// 항공권 탭
+flightTab.addEventListener("click", function () {
+    flightTab.classList.add("active");
+    hotelTab.classList.remove("active");
+
+    flightForm.classList.remove("hidden");
+    hotelForm.classList.add("hidden");
+
+    statusMessage.textContent = "항공권 정보를 입력하고 검색해 보세요!";
 });
 
-// 검색 결과 표시
-function renderResults(results, category) {
-  currentResults = results;
 
-  const isHotel = category === "hotel";
-  const icon = isHotel ? "🏨" : "✈️";
+// 숙소 탭
+hotelTab.addEventListener("click", function () {
+    hotelTab.classList.add("active");
+    flightTab.classList.remove("active");
 
-  if (results.length === 0) {
-    $("#results").innerHTML = `
-      <div class="empty-state">검색 결과가 없습니다.</div>
-    `;
-    return;
-  }
+    hotelForm.classList.remove("hidden");
+    flightForm.classList.add("hidden");
 
-  $("#results").innerHTML = results.map((item, index) => {
-    const totalPrice = isHotel
-      ? item.price * currentNights
-      : item.price;
+    statusMessage.textContent = "숙소 정보를 입력하고 검색해 보세요!";
+});
 
-    return `
-      <article class="result-card">
-        <div class="result-icon">${icon}</div>
-        <h3>${escapeHTML(item.name)}</h3>
-        <p class="muted">
-          ${isHotel ? `${currentNights}박 총액 · 예시 가격` : "예시 항공권 가격"}
-        </p>
-        <p class="price">${totalPrice.toLocaleString("ko-KR")}원</p>
-        <button class="save-button" data-save-index="${index}">
-          ♡ 가격 기록하기
-        </button>
-      </article>
-    `;
-  }).join("");
 
-  $("#results").querySelectorAll("[data-save-index]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const item = currentResults[Number(button.dataset.saveIndex)];
+// 검색 결과를 화면에 표시
+function renderResults(items) {
+    results.innerHTML = "";
+    resultCount.textContent = items.length + "개";
 
-      const price = isHotel
-        ? item.price * currentNights
-        : item.price;
+    if (items.length === 0) {
+        statusMessage.textContent = "검색 결과가 없어요.";
+        return;
+    }
 
-      try {
-        await apiRequest("/api/history", {
-          method: "POST",
-          body: JSON.stringify({
-            category: isHotel ? "숙소" : "항공권",
-            item_name: item.name,
-            price
-          })
+    statusMessage.textContent =
+        "가격이 저렴한 순서로 표시했어요. 아래 가격은 테스트용 예시예요.";
+
+    items.forEach(function (item, index) {
+        const card = document.createElement("article");
+
+        card.className = "result-card";
+
+        if (index === 0) {
+            card.classList.add("best");
+        }
+
+        card.innerHTML = `
+            <div class="card-info">
+                ${index === 0
+                    ? '<span class="best-label">최저가 예시</span>'
+                    : ""}
+                <h3>${escapeHTML(item.title)}</h3>
+                <p>📅 ${escapeHTML(item.travel_date)}</p>
+                <p>판매처: ${escapeHTML(item.provider)}</p>
+            </div>
+
+            <div class="card-actions">
+                <div class="price">${formatPrice(item.price)}</div>
+                <button class="secondary-button save-button" type="button">
+                    가격 저장
+                </button>
+            </div>
+        `;
+
+        const saveButton = card.querySelector(".save-button");
+
+        saveButton.addEventListener("click", async function () {
+            saveButton.disabled = true;
+
+            try {
+                await apiRequest("/api/history", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(item)
+                });
+
+                alert("가격을 저장했어요! 😊");
+                await loadHistory();
+            } catch (error) {
+                alert(error.message);
+            } finally {
+                saveButton.disabled = false;
+            }
         });
 
-        showStatus("✅ 가격을 기록했어요!");
-        await loadHistory();
-      } catch (error) {
-        showStatus(error.message, true);
-      }
+        results.appendChild(card);
     });
-  });
 }
+
 
 // 항공권 검색
-$("#flight-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
+flightForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
 
-  const origin = $("#origin").value.trim();
-  const destination = $("#destination").value.trim();
-  const departDate = $("#depart-date").value;
+    const button = flightForm.querySelector(".primary-button");
+    button.disabled = true;
+    button.textContent = "검색 중...";
 
-  if (origin === destination) {
-    showStatus("출발지와 도착지를 다르게 입력해 주세요.", true);
-    return;
-  }
+    results.innerHTML = "";
+    resultCount.textContent = "0개";
+    statusMessage.textContent = "항공권을 검색하고 있어요.";
 
-  showStatus("항공권 검색 중...");
+    const searchData = {
+        origin: document.getElementById("origin").value.trim(),
+        destination: document.getElementById("flightDestination").value.trim(),
+        date: document.getElementById("flightDate").value
+    };
 
-  try {
-    const data = await apiRequest("/api/search/flights", {
-      method: "POST",
-      body: JSON.stringify({
-        origin,
-        destination,
-        depart_date: departDate
-      })
-    });
+    try {
+        currentResults = await apiRequest("/api/search/flights", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(searchData)
+        });
 
-    $("#results-title").textContent =
-      `${data.route} 항공권 검색 결과`;
-
-    renderResults(data.results, "flight");
-
-    showStatus(`ℹ️ ${data.message}`);
-  } catch (error) {
-    showStatus(error.message, true);
-  }
+        renderResults(currentResults);
+    } catch (error) {
+        statusMessage.textContent = error.message;
+    } finally {
+        button.disabled = false;
+        button.textContent = "항공권 검색";
+    }
 });
+
 
 // 숙소 검색
-$("#hotel-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
+hotelForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
 
-  const city = $("#city").value.trim();
-  const checkin = $("#checkin").value;
-  const checkout = $("#checkout").value;
+    const button = hotelForm.querySelector(".primary-button");
+    button.disabled = true;
+    button.textContent = "검색 중...";
 
-  if (!city || !checkin || !checkout) {
-    showStatus("도시와 숙박 날짜를 모두 입력해 주세요.", true);
-    return;
-  }
+    results.innerHTML = "";
+    resultCount.textContent = "0개";
+    statusMessage.textContent = "숙소를 검색하고 있어요.";
 
-  if (checkout <= checkin) {
-    showStatus("체크아웃 날짜는 체크인 이후여야 해요.", true);
-    return;
-  }
+    const searchData = {
+        destination: document.getElementById("hotelDestination").value.trim(),
+        checkin: document.getElementById("checkin").value,
+        checkout: document.getElementById("checkout").value
+    };
 
-  showStatus("숙소 검색 중...");
+    try {
+        currentResults = await apiRequest("/api/search/hotels", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(searchData)
+        });
 
-  try {
-    const data = await apiRequest("/api/search/hotels", {
-      method: "POST",
-      body: JSON.stringify({ city, checkin, checkout })
-    });
-
-    currentNights = data.nights;
-
-    $("#results-title").textContent =
-      `${data.city} 숙소 검색 결과`;
-
-    renderResults(data.results, "hotel");
-
-    showStatus(`ℹ️ ${data.message}`);
-  } catch (error) {
-    showStatus(error.message, true);
-  }
+        renderResults(currentResults);
+    } catch (error) {
+        statusMessage.textContent = error.message;
+    } finally {
+        button.disabled = false;
+        button.textContent = "숙소 검색";
+    }
 });
 
-// 가격 기록 불러오기
+
+// 저장된 가격 기록 표시
 async function loadHistory() {
-  try {
-    const records = await apiRequest("/api/history");
+    historyMessage.textContent = "저장 기록을 불러오는 중...";
+    historyList.innerHTML = "";
 
-    if (records.length === 0) {
-      $("#history-chart").innerHTML =
-        '<p class="muted">저장한 가격이 여기에 표시됩니다.</p>';
-      $("#history-list").innerHTML = "";
-      return;
-    }
+    try {
+        const items = await apiRequest("/api/history");
 
-    const maxPrice = Math.max(...records.map((item) => item.price), 1);
-
-    $("#history-chart").innerHTML = records.map((item) => {
-      const width = Math.max(3, (item.price / maxPrice) * 100);
-
-      return `
-        <div class="bar-row">
-          <span>${escapeHTML(item.item_name)}</span>
-          <div class="bar-track">
-            <div class="bar-fill" style="width:${width}%"></div>
-          </div>
-          <strong class="bar-value">
-            ${Number(item.price).toLocaleString("ko-KR")}원
-          </strong>
-        </div>
-      `;
-    }).join("");
-
-    $("#history-list").innerHTML = records.map((item) => `
-      <div class="history-item">
-        <div>
-          <strong>${escapeHTML(item.item_name)}</strong>
-          <div class="muted">
-            ${escapeHTML(item.category)} ·
-            ${escapeHTML(item.created_at)}
-          </div>
-          <strong>${Number(item.price).toLocaleString("ko-KR")}원</strong>
-        </div>
-        <button class="delete-button" data-delete-id="${item.id}">
-          삭제
-        </button>
-      </div>
-    `).join("");
-
-    $("#history-list").querySelectorAll("[data-delete-id]").forEach((button) => {
-      button.addEventListener("click", async () => {
-        try {
-          await apiRequest(
-            `/api/history/${button.dataset.deleteId}`,
-            { method: "DELETE" }
-          );
-
-          showStatus("가격 기록을 삭제했어요.");
-          await loadHistory();
-        } catch (error) {
-          showStatus(error.message, true);
+        if (items.length === 0) {
+            historyMessage.textContent =
+                "아직 저장한 가격이 없어요. 검색 결과에서 가격을 저장해 보세요!";
+            return;
         }
-      });
-    });
-  } catch (error) {
-    showStatus("가격 기록을 불러오지 못했어요.", true);
-  }
+
+        historyMessage.textContent = "저장한 가격: " + items.length + "개";
+
+        items.forEach(function (item) {
+            const card = document.createElement("article");
+
+            card.className = "history-card";
+
+            const typeName = item.kind === "flight" ? "✈️ 항공권" : "🏨 숙소";
+
+            card.innerHTML = `
+                <div class="card-info">
+                    <p>${typeName}</p>
+                    <h3>${escapeHTML(item.title)}</h3>
+                    <p>📅 ${escapeHTML(item.travel_date)}</p>
+                    <p>판매처: ${escapeHTML(item.provider)}</p>
+                    <p>저장 시각: ${escapeHTML(item.created_at)}</p>
+                </div>
+
+                <div class="card-actions">
+                    <div class="price">${formatPrice(item.price)}</div>
+                    <button class="delete-button" type="button">
+                        삭제
+                    </button>
+                </div>
+            `;
+
+            const deleteButton = card.querySelector(".delete-button");
+
+            deleteButton.addEventListener("click", async function () {
+                const confirmed = confirm("이 가격 기록을 삭제할까요?");
+
+                if (!confirmed) {
+                    return;
+                }
+
+                deleteButton.disabled = true;
+
+                try {
+                    await apiRequest("/api/history/" + item.id, {
+                        method: "DELETE"
+                    });
+
+                    await loadHistory();
+                } catch (error) {
+                    alert(error.message);
+                    deleteButton.disabled = false;
+                }
+            });
+
+            historyList.appendChild(card);
+        });
+    } catch (error) {
+        historyMessage.textContent =
+            "기록을 불러오지 못했어요. 서버가 실행 중인지 확인해 주세요.";
+    }
 }
 
-// 날짜 기본값 설정
-const today = new Date();
-today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
-const todayString = today.toISOString().slice(0, 10);
 
-const plusDays = (days) => {
-  const d = new Date(`${todayString}T12:00:00`);
-  d.setDate(d.getDate() + days);
+// 기록 새로고침 버튼
+refreshHistory.addEventListener("click", loadHistory);
 
-  return [
-    d.getFullYear(),
-    String(d.getMonth() + 1).padStart(2, "0"),
-    String(d.getDate()).padStart(2, "0")
-  ].join("-");
-};
 
-$("#depart-date").min = todayString;
-$("#depart-date").value = plusDays(30);
-
-$("#checkin").min = todayString;
-$("#checkin").value = plusDays(30);
-
-$("#checkout").min = plusDays(31);
-$("#checkout").value = plusDays(33);
-
-$("#checkin").addEventListener("change", () => {
-  const nextDay = new Date(`${$("#checkin").value}T12:00:00`);
-  nextDay.setDate(nextDay.getDate() + 1);
-
-  const minCheckout = [
-    nextDay.getFullYear(),
-    String(nextDay.getMonth() + 1).padStart(2, "0"),
-    String(nextDay.getDate()).padStart(2, "0")
-  ].join("-");
-
-  $("#checkout").min = minCheckout;
-
-  if ($("#checkout").value < minCheckout) {
-    $("#checkout").value = minCheckout;
-  }
-});
-
-$("#refresh-history").addEventListener("click", loadHistory);
-
+// 페이지를 열 때 저장 기록 불러오기
 loadHistory();
